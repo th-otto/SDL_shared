@@ -355,7 +355,7 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	/* Open AES (Application Environment Services) */
 	GEM_ap_id = internal_ap_id;
 	if (GEM_ap_id == -1) {
-		fprintf(stderr,"Can not open AES\n");
+		SDL_SetError("Can not open AES");
 		return 1;
 	}
 
@@ -375,7 +375,7 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	/* Ask VDI physical workstation handle opened by AES */
 	VDI_handle = graf_handle(&dummy, &dummy, &dummy, &dummy);
 	if (VDI_handle<1) {
-		fprintf(stderr,"Wrong VDI handle %d returned by AES\n",VDI_handle);
+		SDL_SetError("Wrong VDI handle %d returned by AES",VDI_handle);
 		return 1;
 	}
 
@@ -387,7 +387,7 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 
 	v_opnvwk(work_in, &VDI_handle, work_out);
 	if (VDI_handle == 0) {
-		fprintf(stderr,"Can not open VDI virtual workstation\n");
+		SDL_SetError("Can not open VDI virtual workstation");
 		return 1;
 	}
 
@@ -397,7 +397,7 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 
 	/* Read desktop size and position */
 	if (!wind_get_grect(DESKTOP_HANDLE, WF_WORKXYWH, &GEM_desk)) {
-		fprintf(stderr,"Can not read desktop properties\n");
+		SDL_SetError("Can not read desktop properties");
 		return 1;
 	}
 
@@ -423,7 +423,7 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 			VDI_pixelsize=4;
 			break;
 		default:
-			fprintf(stderr,"%d bits colour depth not supported\n",VDI_bpp);
+			SDL_SetError("%d bits colour depth not supported",VDI_bpp);
 			return 1;
 	}
 
