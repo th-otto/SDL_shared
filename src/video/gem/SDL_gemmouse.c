@@ -40,14 +40,18 @@
 
 /*#define DEBUG_VIDEO_GEM 1*/
 
+#ifdef DEBUG_VIDEO_GEM
+#define DEBUG_VIDEO(x, ...) printf("sdl:video:gem: " x, ## __VA_ARGS__)
+#else
+#define DEBUG_VIDEO(x, ...)
+#endif
+
 #define MAXCURWIDTH 16
 #define MAXCURHEIGHT 16
 
 void GEM_FreeWMCursor(_THIS, WMcursor *cursor)
 {
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: free cursor\n");
-#endif
+	DEBUG_VIDEO("free cursor\n");
 
 	if (cursor == NULL)
 		return;
@@ -68,11 +72,7 @@ WMcursor *GEM_CreateWMCursor(_THIS,
 	MFORM *new_mform;
 	int i;
 
-#ifdef DEBUG_VIDEO_GEM
-	Uint16 *data1, *mask1;
-
-	printf("sdl:video:gem: create cursor\n");
-#endif
+	DEBUG_VIDEO("create cursor\n");
 
 	/* Check the size */
 	if ( (w > MAXCURWIDTH) || (h > MAXCURHEIGHT) ) {
@@ -107,12 +107,8 @@ WMcursor *GEM_CreateWMCursor(_THIS,
 	for (i=0;i<MAXCURHEIGHT;i++) {
 		new_mform->mf_mask[i]=0;
 		new_mform->mf_data[i]=0;
-#ifdef DEBUG_VIDEO_GEM
-		data1 = (Uint16 *) &data[i<<1];
-		mask1 = (Uint16 *) &mask[i<<1];
-		printf("sdl:video:gem: source: line %d: data=0x%04x, mask=0x%04x\n",
-			i, data1[i], mask1[i]);
-#endif
+		DEBUG_VIDEO("source: line %d: data=0x%04x, mask=0x%04x\n",
+			i, ((Uint16 *) &data[i<<1])[i], ((Uint16 *) &mask[i<<1])[i]);
 	}
 
 	if (w<=8) {
@@ -127,14 +123,12 @@ WMcursor *GEM_CreateWMCursor(_THIS,
 		}
 	}
 
-#ifdef DEBUG_VIDEO_GEM
 	for (i=0; i<h ;i++) {
-		printf("sdl:video:gem: cursor: line %d: data=0x%04x, mask=0x%04x\n",
+		DEBUG_VIDEO("cursor: line %d: data=0x%04x, mask=0x%04x\n",
 			i, new_mform->mf_data[i], new_mform->mf_mask[i]);
 	}
 
-	printf("sdl:video:gem: CreateWMCursor(): done\n");
-#endif
+	DEBUG_VIDEO("CreateWMCursor(): done\n");
 
 	return cursor;
 }
@@ -145,9 +139,7 @@ int GEM_ShowWMCursor(_THIS, WMcursor *cursor)
 
 	GEM_CheckMouseMode(this);
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: ShowWMCursor(0x%08x)\n", (long) cursor);
-#endif
+	DEBUG_VIDEO("ShowWMCursor(0x%08lx)\n", (long) cursor);
 
 	return 1;
 }
@@ -172,9 +164,7 @@ void GEM_CheckMouseMode(_THIS)
 	int set_system_cursor = 1;
 	SDL_bool hide_system_cursor = SDL_FALSE;
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: check mouse mode\n");
-#endif
+	DEBUG_VIDEO("check mouse mode\n");
 
 	/* If the mouse is hidden and input is grabbed, we use relative mode */
 	GEM_mouse_relative = (!(SDL_cursorstate & CURSOR_VISIBLE))

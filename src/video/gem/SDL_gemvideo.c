@@ -59,6 +59,12 @@
 
 /*#define DEBUG_VIDEO_GEM	1*/
 
+#ifdef DEBUG_VIDEO_GEM
+#define DEBUG_VIDEO(x, ...) printf("sdl:video:gem: " x, ## __VA_ARGS__)
+#else
+#define DEBUG_VIDEO(x, ...)
+#endif
+
 #define GEM_VID_DRIVER_NAME "gem"
 
 #undef MIN
@@ -469,13 +475,11 @@ int GEM_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	else
 		GEM_align_windows = SDL_FALSE;
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: screen: address=0x%08x, pitch=%d\n", VDI_screen, VDI_pitch);
-	printf("sdl:video:gem: format=%d\n", VDI_format);
-	printf("sdl:video:gem: masks: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
+	DEBUG_VIDEO("screen: address=0x%08lx, pitch=%d\n", (unsigned long)VDI_screen, VDI_pitch);
+	DEBUG_VIDEO("format=%d\n", VDI_format);
+	DEBUG_VIDEO("masks: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
 		VDI_alphamask, VDI_redmask, VDI_greenmask, VDI_bluemask
 	);
-#endif
 
 	/* Setup destination mfdb */
 	VDI_dst_mfdb.fd_addr = NULL;
@@ -711,9 +715,7 @@ SDL_Surface *GEM_SetVideoMode(_THIS, SDL_Surface *current,
 
 	screensize = width * height * VDI_pixelsize;
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: setvideomode(): %dx%dx%d = %d\n", width, height, bpp, screensize);
-#endif
+	DEBUG_VIDEO("setvideomode(): %dx%dx%d = %d\n", width, height, bpp, screensize);
 
 	/*--- Allocate shadow buffers if needed, and conversion operations ---*/
 	GEM_FreeBuffers(this);
@@ -742,9 +744,7 @@ SDL_Surface *GEM_SetVideoMode(_THIS, SDL_Surface *current,
 			return NULL;
 		}
 		SDL_memset(GEM_buffer1, 0, screensize);
-#ifdef DEBUG_VIDEO_GEM
-		printf("sdl:video:gem: setvideomode(): allocated buffer 1\n");
-#endif
+		DEBUG_VIDEO("setvideomode(): allocated buffer 1\n");
 	}
 
 	if (use_shadow2) {
@@ -754,9 +754,7 @@ SDL_Surface *GEM_SetVideoMode(_THIS, SDL_Surface *current,
 			return NULL;
 		}
 		SDL_memset(GEM_buffer2, 0, screensize);
-#ifdef DEBUG_VIDEO_GEM
-		printf("sdl:video:gem: setvideomode(): allocated buffer 2\n");
-#endif
+		DEBUG_VIDEO("setvideomode(): allocated buffer 2\n");
 	}
 
 	/*--- Initialize screen ---*/
@@ -843,9 +841,7 @@ SDL_Surface *GEM_SetVideoMode(_THIS, SDL_Surface *current,
 				return NULL;
 			}
 
-#ifdef DEBUG_VIDEO_GEM
-			printf("sdl:video:gem: handle=%d\n", GEM_handle);
-#endif
+			DEBUG_VIDEO("GEM:handle=%d\n", GEM_handle);
 
 			/* Setup window name */
 			wind_set_str(GEM_handle,WF_NAME,GEM_title_name);
@@ -894,9 +890,7 @@ SDL_Surface *GEM_SetVideoMode(_THIS, SDL_Surface *current,
 
 	current->flags = modeflags;
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: surface: %dx%d\n", current->w, current->h);
-#endif
+	DEBUG_VIDEO("surface: %dx%d\n", current->w, current->h);
 
 	this->UpdateRects = GEM_UpdateRects;
 	GEM_lock_redraw = SDL_FALSE;	/* Enable redraw */
@@ -1162,9 +1156,7 @@ static int GEM_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *colors)
 	int i, has_input_focus;
 	SDL_Surface *surface;
 
-#ifdef DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: setcolors()\n");
-#endif
+	DEBUG_VIDEO("setcolors()\n");
 
 	/* Do not change palette in True Colour */
 	surface = this->screen;
@@ -1362,13 +1354,11 @@ static void refresh_window(_THIS, int winhandle, GRECT *rect, SDL_bool pad_only)
 	pxy[2] -= GEM_work.g_x;
 	pxy[3] -= GEM_work.g_y;
 
-#if DEBUG_VIDEO_GEM
-	printf("sdl:video:gem: redraw %dx%d: (%d,%d,%d,%d) to (%d,%d,%d,%d)\n",
+	DEBUG_VIDEO("redraw %dx%d: (%d,%d,%d,%d) to (%d,%d,%d,%d)\n",
 		surface->w, surface->h,
 		pxy[0],pxy[1],pxy[2],pxy[3],
 		pxy[4],pxy[5],pxy[6],pxy[7]
 	);
-#endif
 
 	if (GEM_bufops & B2S_C2P_1TO2) {
 		void *src, *dest;
