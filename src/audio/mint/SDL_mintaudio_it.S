@@ -123,9 +123,14 @@ nosilence:
 	.bss
 
 	.even
-	.comm	SYM(SDL_MintAudio_clocktics),4
-	.comm	SYM(SDL_MintAudio_num_its),4
+SYM(SDL_MintAudio_clocktics):
+	.ds.l 1
+SYM(SDL_MintAudio_num_its):
+	.ds.l 1
 
-	.comm	SYM(SDL_MintAudio_itbuffer),4	/* Audio DMA buffer */
-	.comm	SYM(SDL_MintAudio_itbuflen),4	/* Length in longword */
-	.comm	SYM(SDL_MintAudio_itsilence),4	/* Silence value */
+SYM(SDL_MintAudio_itbuffer):	/* Audio DMA buffer */
+	.ds.l 1
+SYM(SDL_MintAudio_itbuflen):	/* Length in longword */
+	.ds.l 1
+SYM(SDL_MintAudio_itsilence):	/* Silence value */
+	.ds.l 1
