@@ -41,16 +41,19 @@
 #include <mint/sysvars.h>
 #include <mint/osbind.h>
 #include <mint/mintbind.h>
+#include <mint/falcon.h>
 
 #include "SDL_timer.h"
 #include "../SDL_timer_c.h"
 
 #include "../../video/ataricommon/SDL_atarisuper.h"
+#include "../../video/ataricommon/SDL_xbiosevents_c.h"
+#include "../../video/ataricommon/SDL_ikbdevents_c.h"
 
 /* from src/video/ataricommon/SDL_atarievents.c */
 void SDL_AtariMint_BackgroundTasks(void);
 
-static Uint32 readHz200Timer(void);
+static clock_t counter_200hz; /* 200 HZ tick when we started the program. */
 
 /* The first ticks value of the application */
 static Uint32 start;
@@ -58,17 +61,138 @@ static Uint32 start;
 /* Timer  SDL_arraysize(Timer ),start/reset time */
 static Uint32 timerStart;
 
+/*
+ * replace also mintlib function
+ */
+clock_t clock(void)
+{
+    return counter_200hz;
+}
+
+/* This next bit of nonsense is temporary...clock() should be fixed! */
+__typeof__(clock) _clock;
+
+clock_t _clock(void) __attribute__ ((alias ("clock")));
+
 void SDL_StartTicks(void)
 {
 	/* Set first ticks value, one _hz_200 tic is 5ms */
-	start = readHz200Timer() * 5;
+	start = clock() * (1000 / 200);
 }
 
 Uint32 SDL_GetTicks (void)
 {
-	Uint32 now = readHz200Timer() * 5;
+	Uint32 now = clock() * (1000 / 200);
 
 	return(now-start);
+}
+
+static long atari_200hz_init(void)
+{
+	__asm__ __volatile__(
+	"\tmove    %%sr,%%d0\n"
+	"\tmove    %%d0,%%d1\n"
+#ifdef __mcoldfire__
+	"\tor.l    #0x700,%%d1\n"
+#else
+	"\tor.w    #0x700,%%d1\n"
+#endif
+	"\tmove    %%d1,%%sr\n"
+
+	"\tlea	   my_200hz-4(%%pc),%%a0\n"
+	"\tmove.l  0x114.w,(%%a0)\n"
+	"\taddq.l  #4,%%a0\n"
+	"\tmove.l  %%a0,0x114.w\n"
+
+	"\tmove    %%d0,%%sr\n"
+	"\tjbra 1f\n"
+
+	"\t.dc.l  0x58425241\n" /* "XBRA" */
+	"\t.dc.l  0x4c53444c\n" /* "LSDL" */
+	"\t.dc.l  0\n"
+"my_200hz:\n"
+	"\taddq.l  #1,%0\n"
+
+	"\tmove.l  my_200hz-4(%%pc),-(%%sp)\n"
+	"\trts\n"
+"1:\n"
+	: /* output */
+	: "m"(counter_200hz) /* inputs */
+	: "d0", "d1", "a0", "memory", "cc");
+	return 0;
+}
+
+static long atari_200hz_shutdown(void)
+{
+	__asm__ __volatile__(
+	"\tmove    %%sr,%%d0\n"
+	"\tmove    %%d0,%%d1\n"
+#ifdef __mcoldfire__
+	"\tor.l    #0x700,%%d1\n"
+#else
+	"\tor.w    #0x700,%%d1\n"
+#endif
+	"\tmove    %%d1,%%sr\n"
+
+	"\tlea	   my_200hz-4(%%pc),%%a0\n"
+	"\tmove.l  (%%a0),0x114.w\n"
+
+	"\tmove    %%d0,%%sr\n"
+	: /* output */
+	: /* inputs */
+	: "d0", "d1", "a0", "memory", "cc");
+	return 0;
+}
+
+
+static void exit_vectors(void)
+{
+	SDL_timer_running = 0;
+	Supexec(atari_200hz_shutdown);
+	SDL_AtariXbios_RestoreVectors();
+	AtariIkbd_ShutdownEvents();
+	Buffoper(0);
+	Jdisint(MFP_DMASOUND);
+	NSetinterrupt(2, SI_NONE, 0);
+	Jdisint(MFP_TIMERA);
+	Unlocksnd();
+}
+
+# define PGETFLAGS       (('P'<< 8) | 5)
+
+__attribute__((__constructor__))
+static void init_clock(void)
+{
+	int fd;
+	long arg;
+	unsigned int protmode;
+
+	/*
+	 * If PMMU is active, check that our protection mode is sufficent.
+	 * Interrupt routines will write to our memory even when other processes
+	 * are running.
+	 * A protection mode of 2 (Super) or 1 (Global) is sufficient.
+	 * A protection mode of 0 (Private) or 3 (readonly) is not.
+	 */
+	if (Getcookie(C_PMMU, &arg) == C_FOUND)
+	{
+		fd = Fopen("U:\\proc\\.-1", 0);
+		if (fd > 0)
+		{
+			arg = 0;
+			if (Fcntl(fd, &arg, PGETFLAGS) >= 0)
+			{
+				protmode = arg & 0xf0;
+				if (protmode == 0 || protmode >= (3 << 4))
+				{
+					(void) Cconws("SDL: warning: PMMU is active, change memory-protection\r\n");
+				}
+			}
+			Fclose(fd);
+		}
+	}
+	Supexec(atari_200hz_init);
+	Setexc(VEC_PROCTERM, exit_vectors);
 }
 
 void SDL_Delay (Uint32 ms)
@@ -80,7 +204,7 @@ void SDL_Delay (Uint32 ms)
 	now = cur_tick = SDL_GetTicks();
 
 	/* No need to loop for delay below resolution */
-	if (ms<5) {
+	if (ms < (1000 / 200)) {
 		if (prev_now != now) {
 			SDL_AtariMint_BackgroundTasks();
 			prev_now = now;
@@ -94,24 +218,13 @@ void SDL_Delay (Uint32 ms)
 			prev_now = cur_tick;
 			ran_bg_task = 1;
 		}
+		Syield();
 		cur_tick = SDL_GetTicks();
 	}
 
 	if (!ran_bg_task) {
 		SDL_AtariMint_BackgroundTasks();
 	}
-}
-
-static Uint32 readHz200Timer(void)
-{
-	void *old_stack;
-	Uint32 now;
-
-	old_stack = (void *)Super(0);
-	now = *((volatile long *)_hz_200);
-	SuperToUser(old_stack);
-
-	return now;
 }
 
 /* Non-threaded version of timer */

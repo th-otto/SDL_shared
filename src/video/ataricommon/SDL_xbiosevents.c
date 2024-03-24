@@ -64,7 +64,6 @@ void SDL_AtariXbios_InstallVectors(int vectors_mask)
 	SDL_AtariXbios_installjoystickvector = (vectors_mask & ATARI_XBIOS_JOYSTICKEVENTS) != 0;
 	Supexec(SDL_AtariXbios_Install);
 	/* SDL_AtariXbios_Restore() doesn't need SDL_AtariXbios_enabled */
-	Setexc(VEC_PROCTERM, SDL_AtariXbios_Restore);
 
 	SDL_AtariXbios_enabled=SDL_TRUE;
 }
@@ -77,6 +76,7 @@ void SDL_AtariXbios_RestoreVectors(void)
 
 	/* Reinstall system vector */
 	Supexec(SDL_AtariXbios_Restore);
+	SDL_AtariXbios_enabled = SDL_FALSE;
 }
 
 static int atari_GetButton(int button)
