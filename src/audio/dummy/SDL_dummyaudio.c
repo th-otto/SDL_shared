@@ -150,7 +150,12 @@ static int DUMMYAUD_OpenAudio(_THIS, SDL_AudioSpec *spec)
 	this->hidden->write_delay =
 	               (Uint32) ((((float) spec->size) / bytes_per_sec) * 1000.0f);
 
+#ifdef SDL_THREADS_DISABLED
+	/* We don't use threaded audio */
+	return 1;
+#else
 	/* We're ready to rock and roll. :-) */
-	return(0);
+	return 0;
+#endif
 }
 

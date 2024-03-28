@@ -78,6 +78,9 @@ int SDL_MintAudio_InitBuffers(SDL_AudioSpec *spec)
 	int dmabuflen;
 	SDL_AudioDevice *this = SDL_MintAudio_device;
 
+	if (!this)
+		return 0;
+
 	SDL_CalculateAudioSpec(spec);
 	MINTAUDIO_audiosize = spec->size * MAX_DMA_BUF;
 
@@ -118,6 +121,9 @@ void SDL_MintAudio_FreeBuffers(void)
 {
 	SDL_AudioDevice *this = SDL_MintAudio_device;
 
+	if (!this)
+		return;
+
 	if (MINTAUDIO_fastrambuf) {
 		Mfree(MINTAUDIO_fastrambuf);
 		MINTAUDIO_fastrambuf = NULL;
@@ -133,6 +139,9 @@ void SDL_MintAudio_FreeBuffers(void)
 void SDL_AtariMint_UpdateAudio(void)
 {
 	SDL_AudioDevice *this = SDL_MintAudio_device;
+
+	if (!this)
+		return;
 
 	++SDL_MintAudio_num_upd;
 
