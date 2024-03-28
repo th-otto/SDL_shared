@@ -159,7 +159,8 @@ SDL_JOYSTICK_ATARI:
 
 SDL_GEM_ALIGN_WINDOW:
         - The gem video driver no longer aligns the window to a 16-pixel
-          boundary. If you want the old behaviour, set this environment variable.
+          boundary. If you want the old behaviour (e.g. for speed reasons),
+          set this environment variable.
 
 ==============================================================================
 VI.  More informations about drivers:
