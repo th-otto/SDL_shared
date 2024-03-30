@@ -75,14 +75,13 @@ SDL_MintAudio_EndIntMeasure:
 /*    Xbios, DMA 8 bits: need to set ISR on MFP */
 /*    STFA: do not touch MFP */
 
+SYM(SDL_MintAudio_StfaInterrupt):
+	move.l	d0,-(sp)
+	bra.s	stfa_nomfp
+
 SYM(SDL_MintAudio_XbiosInterrupt):
 SYM(SDL_MintAudio_Dma8Interrupt):
-#if defined(__mcoldfire__)
-	lea	sp@(-12),sp
-	moveml	d0-d1/a0,sp@
-#else
-	moveml	d0-d1/a0,sp@-
-#endif
+	move.l	d0,-(sp)
 
 	/* Clear service bit, so other MFP interrupts can work */
 #if defined(__mcoldfire__)
@@ -92,7 +91,7 @@ SYM(SDL_MintAudio_Dma8Interrupt):
 	bclr	#5,0xfffffa0f:w
 #endif
 
-SYM(SDL_MintAudio_StfaInterrupt):
+stfa_nomfp:
 	move.l	SYM(SDL_MintAudio_num_its),d0
 	addql	#1,d0
 	move.l	d0,SYM(SDL_MintAudio_num_its)
@@ -100,24 +99,25 @@ SYM(SDL_MintAudio_StfaInterrupt):
 	cmp.l	#5,d0
 	bmi.s	nosilence
 
+	move.l	d1,-(sp)
+	move.l	a0,-(sp)
 	move.l	SYM(SDL_MintAudio_itbuffer),d1
-	beq.s	nosilence
+	beq.s	retsilence
 	move.l	d1,a0
 
 	move.l	SYM(SDL_MintAudio_itbuflen),d0
+	ble.s	retsilence
 	move.l	SYM(SDL_MintAudio_itsilence),d1
 fillsilence:
-	move.l	d1,a0@+
+	move.l	d1,(a0)+
 	subq.l	#1,d0
 	bpl.s	fillsilence
+retsilence:
+	move.l	(sp)+,a0
+	move.l	(sp)+,d1
 
 nosilence:
-#if defined(__mcoldfire__)
-	moveml	sp@,d0-d1/a0
-	lea	sp@(12),sp
-#else
-	moveml	sp@+,d0-d1/a0
-#endif
+	move.l	(sp)+,d0
 	rte
 
 	.bss
