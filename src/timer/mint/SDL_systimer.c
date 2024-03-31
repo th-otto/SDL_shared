@@ -50,10 +50,14 @@
 #include "../../video/ataricommon/SDL_xbiosevents_c.h"
 #include "../../video/ataricommon/SDL_ikbdevents_c.h"
 
+#undef CLOCKS_PER_SEC
+#define CLOCKS_PER_SEC 200
+
+
 /* from src/video/ataricommon/SDL_atarievents.c */
 void SDL_AtariMint_BackgroundTasks(void);
 
-static clock_t counter_200hz; /* 200 HZ tick when we started the program. */
+static volatile clock_t counter_200hz; /* 200 HZ tick when we started the program. */
 
 /* The first ticks value of the application */
 static Uint32 start;
@@ -77,12 +81,12 @@ clock_t _clock(void) __attribute__ ((alias ("clock")));
 void SDL_StartTicks(void)
 {
 	/* Set first ticks value, one _hz_200 tic is 5ms */
-	start = clock() * (1000 / 200);
+	start = clock() * (1000 / CLOCKS_PER_SEC);
 }
 
 Uint32 SDL_GetTicks (void)
 {
-	Uint32 now = clock() * (1000 / 200);
+	Uint32 now = clock() * (1000 / CLOCKS_PER_SEC);
 
 	return(now-start);
 }
@@ -204,7 +208,7 @@ void SDL_Delay (Uint32 ms)
 	now = cur_tick = SDL_GetTicks();
 
 	/* No need to loop for delay below resolution */
-	if (ms < (1000 / 200)) {
+	if (ms < (1000 / CLOCKS_PER_SEC)) {
 		if (prev_now != now) {
 			SDL_AtariMint_BackgroundTasks();
 			prev_now = now;
@@ -273,6 +277,39 @@ void SDL_AtariMint_CheckTimer(void)
 		}
 		if (SDL_alarm_interval) timerStart = SDL_GetTicks();
 	}
+}
+
+#define USEC_PER_TICK (1000000L / ((unsigned long)CLOCKS_PER_SEC))
+#define	USEC_TO_CLOCK_TICKS(us)	((us) / USEC_PER_TICK )
+
+/*
+ * Sleep for usec microSeconds
+ * the actual suspension time can be arbitrarily longer
+ *
+ */
+int usleep(__useconds_t __useconds)
+{
+	long stop;
+	int r = -ENOSYS;
+
+	if (__useconds >= 1000)
+		r = Fselect((unsigned)(__useconds/1000), 0, 0, 0);
+
+	if (r == -ENOSYS)
+	{
+		stop = clock() + USEC_TO_CLOCK_TICKS(__useconds);
+		while (clock() < stop)
+			Syield();
+		r = 0;
+	}
+
+	if (r < 0)
+	{
+		errno = -r;
+		return -1;
+	}
+
+	return 0;
 }
 
 #endif /* SDL_TIMER_MINT */

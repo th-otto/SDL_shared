@@ -499,20 +499,6 @@ __sighandler_t signal(int signum, __sighandler_t handler)
 }
 
 
-long tfork(sdl_int_t (*func)(long), long arg)
-{
-	CHECK(tfork, return -1);
-	return CALL(tfork, (func, arg));
-}
-
-
-int usleep(useconds_t usec)
-{
-	CHECK(usleep, return -1);
-	return CALL(usleep, (usec));
-}
-
-
 int (toupper)(int c)
 {
 	CHECK(toupper, return c);

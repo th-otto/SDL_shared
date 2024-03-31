@@ -294,7 +294,7 @@ int SDL_MintAudio_Thread(long param)
 			if (!buffers_filled[1]) {
 				SDL_MintAudio_numbuf = 1;
 				SDL_MintAudio_Callback();
-				Setbuffer(0, MINTAUDIO_audiobuf[1], MINTAUDIO_audiobuf[1] + MINTAUDIO_audiosize);
+				Setbuffer(SR_PLAY, MINTAUDIO_audiobuf[1], MINTAUDIO_audiobuf[1] + MINTAUDIO_audiosize);
 				buffers_filled[1]=SDL_TRUE;
 				buffers_filled[0]=SDL_FALSE;
 			}
@@ -303,13 +303,13 @@ int SDL_MintAudio_Thread(long param)
 			if (!buffers_filled[0]) {
 				SDL_MintAudio_numbuf = 0;
 				SDL_MintAudio_Callback();
-				Setbuffer(0, MINTAUDIO_audiobuf[0], MINTAUDIO_audiobuf[0] + MINTAUDIO_audiosize);
+				Setbuffer(SR_PLAY, MINTAUDIO_audiobuf[0], MINTAUDIO_audiobuf[0] + MINTAUDIO_audiosize);
 				buffers_filled[0]=SDL_TRUE;
 				buffers_filled[1]=SDL_FALSE;
 			}
 		}
 
-		usleep(100);
+		usleep(1000);
 	}
 	SDL_MintAudio_thread_finished = SDL_TRUE;
 	return 0;
@@ -323,8 +323,87 @@ void SDL_MintAudio_WaitThread(void)
 	if (SDL_MintAudio_thread_finished)
 		return;
 
+	if (SDL_MintAudio_thread_pid <= 0)
+		return;
+
 	SDL_MintAudio_quit_thread = SDL_TRUE;
 	while (!SDL_MintAudio_thread_finished) {
 		Syield();
 	}
+
+	SDL_MintAudio_thread_pid = 0;
+}
+
+/* this is used by wait() and wait3() to retrieve the child's exit code */
+long __waitval = -33;
+
+/* and this is used to retrieve the child's time */
+long __waittime = 0;
+
+extern void _setstack(char *);
+
+/*
+ * This function must not be compiled without optimization,
+ * because we change the stack, and the BASEPAGE parameter
+ * is not accessible afterwards.
+ */
+#pragma GCC optimize "-Os"
+#pragma GCC optimize "-fomit-frame-pointer"
+
+static void __CDECL startup(BASEPAGE *b)
+{
+	int (*func)(long);
+	long arg;
+	BASEPAGE *parent;
+
+	parent = b->p_parent;
+	_setstack(b->p_hitpa);
+	func = (int (*)(long))b->p_dbase;
+	arg = b->p_dlen;
+
+	/* If this is a thread, it doesn't need
+	 * own copy of the environment, right?
+	 */
+	Mfree(b->p_env);
+	b->p_env = parent->p_env;
+
+	/* copy from parents basepage for debuggers... */
+	b->p_tbase = parent->p_tbase;
+	b->p_tlen = parent->p_tlen;
+	b->p_dbase = parent->p_dbase;
+	b->p_dlen = parent->p_dlen;
+	b->p_bbase = parent->p_bbase;
+	b->p_blen = parent->p_blen;
+
+	Pterm((*func)(arg));
+	__builtin_unreachable();
+}
+
+#define THREAD_STACKSIZE 4096L
+
+/* use long instead of int so vfork works OK with -mshort */
+long tfork(int (*func)(long), long arg)
+{
+	BASEPAGE *b;
+	long pid;
+	long stacksize = THREAD_STACKSIZE;
+
+	b = (BASEPAGE *)Pexec(PE_CBASEPAGE, 0L, "", 0L);
+	if ((long)b <= 0)
+		return (long)b;
+	(void)Mshrink(b, stacksize + sizeof(*b));
+	b->p_tbase = (char *)startup;
+	b->p_dbase = (char *)func;
+	b->p_dlen = arg;
+	b->p_blen = stacksize;
+	b->p_hitpa = ((char *)b) + stacksize + sizeof(*b);
+
+	pid = Pexec(PE_ASYNC_GO, 0L, b, 0L);
+	if (pid <= 0)
+	{
+		(void)Mfree(b->p_env);	/* free the memory */
+		(void)Mfree(b);
+	}
+	/* memory of basepage & env is now owned by child */
+	return pid;
 }

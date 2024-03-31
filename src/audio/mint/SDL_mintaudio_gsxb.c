@@ -323,16 +323,16 @@ static void Mint_InitAudio(_THIS, SDL_AudioSpec *spec)
 	switch (spec->format & 0xff) {
 		case 8:
 			if (spec->channels==2) {
-				channels_mode=STEREO8;
+				channels_mode=MODE_STEREO8;
 			} else {
-				channels_mode=MONO8;
+				channels_mode=MODE_MONO8;
 			}
 			break;
 		case 16:
 			if (spec->channels==2) {
-				channels_mode=STEREO16;
+				channels_mode=MODE_STEREO16;
 			} else {
-				channels_mode=MONO16;
+				channels_mode=MODE_MONO16;
 			}
 			break;
 		default:
@@ -387,9 +387,7 @@ static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec)
 
 static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize)
 {
-	unsigned long buffer = (unsigned long) nextbuf;
-
-	Setbuffer(0, buffer, buffer + nextsize);
+	Setbuffer(SR_PLAY, nextbuf, nextbuf + nextsize);
 }
 
 static void Mint_GsxbInterrupt(void)

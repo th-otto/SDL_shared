@@ -80,8 +80,6 @@ struct _sdl_funcs {
 	sdl_int_t __CDECL (*p_raise)(sdl_int_t sig);
 	sdl_int_t __CDECL (*p_sigaction)(sdl_int_t sig, const struct sigaction *__restrict act, struct sigaction *__restrict oact);
 	__sighandler_t __CDECL (*p_signal)(sdl_int_t signum, __sighandler_t handler);
-	long __CDECL (*p_tfork)(sdl_int_t (*func)(long), long arg);
-	sdl_int_t __CDECL (*p_usleep)(useconds_t usec);
 		
 	sdl_int_t __CDECL (*p_toupper)(sdl_int_t c);
 	sdl_int_t __CDECL (*p_tolower)(sdl_int_t c);

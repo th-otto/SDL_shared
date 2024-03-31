@@ -182,8 +182,6 @@ long slb_sdl_open(const char *slbpath)
 	S(raise);
 	S(sigaction);
 	S(signal);
-	S(tfork);
-	S(usleep);
 
 	S(toupper);
 	S(tolower);

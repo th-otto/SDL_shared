@@ -284,7 +284,7 @@ static void Mint_CheckExternalClock(_THIS)
 		Gpio(GPIO_SET,7);      /* DSP port gpio outputs */
 		Gpio(GPIO_WRITE,2+i);  /* 22.5792/24.576 MHz for 44.1/48KHz */
 		Devconnect2(DMAPLAY, DAC, CLKEXT, CLK50K);  /* Matrix and clock source */
-		Setbuffer(0, buffer, buffer + SIZE_BUF_CLOCK_MEASURE);		           /* Set buffer */
+		Setbuffer(SR_PLAY, buffer, buffer + SIZE_BUF_CLOCK_MEASURE);		           /* Set buffer */
 		Xbtimer(XB_TIMERA, 5, 38, SDL_MintAudio_XbiosInterruptMeasureClock); /* delay mode timer A, prediv /64, 1KHz */
 		Jenabint(MFP_TIMERA);
 		SDL_MintAudio_clocktics = 0;
@@ -347,13 +347,17 @@ static int Mint_CheckAudio(_THIS, SDL_AudioSpec *spec)
 	Mint_CheckExternalClock(this);
 
 	/* Standard clocks */
-	for (i=1;i<12;i++) {
-		/* Remove unusable Falcon codec predivisors */
-		if ((i==6) || (i==8) || (i==10)) {
-			continue;
-		}
-		SDL_MintAudio_AddFrequency(this, MASTERCLOCK_FALCON1/(MASTERPREDIV_FALCON*(i+1)), MASTERCLOCK_FALCON1, i, -1);
-	}
+	SDL_MintAudio_AddFrequency(this, 49170, MASTERCLOCK_FALCON1, CLK50K, -1);
+	SDL_MintAudio_AddFrequency(this, 32780, MASTERCLOCK_FALCON1, CLK33K, -1);
+	SDL_MintAudio_AddFrequency(this, 24585, MASTERCLOCK_FALCON1, CLK25K, -1);
+	SDL_MintAudio_AddFrequency(this, 19668, MASTERCLOCK_FALCON1, CLK20K, -1);
+	SDL_MintAudio_AddFrequency(this, 16390, MASTERCLOCK_FALCON1, CLK16K, -1);
+	/* 14049 hz invalid for CODEC */
+	SDL_MintAudio_AddFrequency(this, 12292, MASTERCLOCK_FALCON1, CLK12K, -1);
+	/* 10927 hz invalid for CODEC */
+	SDL_MintAudio_AddFrequency(this, 9834, MASTERCLOCK_FALCON1, CLK10K, -1);
+	/* 8940 hz invalid for CODEC */
+	SDL_MintAudio_AddFrequency(this, 8195, MASTERCLOCK_FALCON1, CLK8K, -1);
 
 #if 1
 	for (i=0; i<MINTAUDIO_freqcount; i++) {
@@ -464,7 +468,5 @@ static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec)
 
 static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize)
 {
-	unsigned long buffer = (unsigned long) nextbuf;
-
-	Setbuffer(0, buffer, buffer + nextsize);
+	Setbuffer(SR_PLAY, nextbuf, nextbuf + nextsize);
 }

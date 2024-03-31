@@ -59,7 +59,7 @@
 
 /*--- Static variables ---*/
 
-static long cookie_snd, cookie_mch;
+static long cookie_mch;
 static cookie_mcsn_t *cookie_mcsn;
 
 /*--- Audio driver functions ---*/
@@ -80,6 +80,7 @@ static int Audio_Available(void)
 {
 	long dummy;
 	const char *envr = SDL_getenv("SDL_AUDIODRIVER");
+	long cookie_snd;
 
 	SDL_MintAudio_mint_present = (Getcookie(C_MiNT, &dummy) == C_FOUND);
 
@@ -332,8 +333,10 @@ static void Mint_InitAudio(_THIS, SDL_AudioSpec *spec)
 	Mint_SwapBuffers(MINTAUDIO_audiobuf[0], MINTAUDIO_audiosize);
 	
 	if (SDL_MintAudio_mint_present) {
+		DEBUG_PRINT((DEBUG_NAME "Using MiNT thread\n"));
 		SDL_MintAudio_thread_pid = tfork(SDL_MintAudio_Thread, 0);
 	} else {
+		DEBUG_PRINT((DEBUG_NAME "Using Timer-A\n"));
 		/* Install interrupt */
 		Jdisint(MFP_DMASOUND);
 		Xbtimer(XB_TIMERA, 8, 1, SDL_MintAudio_XbiosInterrupt);
@@ -377,7 +380,5 @@ static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec)
 
 static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize)
 {
-	unsigned long buffer = (unsigned long) nextbuf;
-
-	Setbuffer(0, buffer, buffer + nextsize);
+	Setbuffer(SR_PLAY, nextbuf, nextbuf + nextsize);
 }
