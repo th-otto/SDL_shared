@@ -83,11 +83,11 @@ static AudioBootStrap *bootstrap[] = {
 	&SNDMGR_bootstrap,
 #endif
 #if SDL_AUDIO_DRIVER_MINT
+	&MINTAUDIO_MCSN_bootstrap, /* should be before GSXB; McSn supports both */
 	&MINTAUDIO_GSXB_bootstrap,
-	&MINTAUDIO_MCSN_bootstrap,
 	&MINTAUDIO_STFA_bootstrap,
 	&MINTAUDIO_XBIOS_bootstrap,
-	&MINTAUDIO_DMA8_bootstrap,
+	&MINTAUDIO_DMA8_bootstrap, /* must come last, if all else fails */
 #endif
 #if SDL_AUDIO_DRIVER_DISK
 	&DISKAUD_bootstrap,

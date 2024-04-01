@@ -54,6 +54,4 @@ enum {
 	MCSN_MAC=MCSN_FALCON
 };
 
-#define SETSMPFREQ	7	/* Set sample frequency */
-
 #endif /* _SDL_mintaudio_mcsh_h */

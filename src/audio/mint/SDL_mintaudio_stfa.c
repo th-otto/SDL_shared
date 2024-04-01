@@ -57,219 +57,118 @@
 
 /*--- Static variables ---*/
 
-static long cookie_snd, cookie_mch;
+static long cookie_snd;
+static long cookie_mch;
 static cookie_stfa_t *cookie_stfa;
 
-static const int freqs[16]={
-	4995,	6269,	7493,	8192,
-	9830,	10971,	12538,	14985,
-	16384,	19819,	21943,	24576,
-	30720,	32336,	43885,	49152
+static const int freqs[16] = {
+	4995, 6269, 7493, 8192,
+	9830, 10971, 12538, 14985,
+	16384, 19819, 21943, 24576,
+	30720, 32336, 43885, 49152
 };
 
+/*--- interrupt function ---*/
+/*
+ * same as SDL_MintAudio_XbiosInterrupt(),
+ * but do not touch the MFP
+ */
+__attribute__((interrupt))
+static void SDL_MintAudio_StfaInterrupt(void)
+{
+	unsigned long num_its;
+	unsigned long *buffer;
+	long buflen;
+	
+	num_its = SDL_MintAudio_num_its;
+	++num_its;
+	SDL_MintAudio_num_its = num_its;
+	if (num_its >= 5)
+	{
+		buffer = (unsigned long *)SDL_MintAudio_itbuffer;
+		if (buffer != NULL)
+		{
+			buflen = SDL_MintAudio_itbuflen;
+			if (buflen > 0)
+			{
+				do
+				{
+					*buffer++ = SDL_MintAudio_itsilence;
+				} while (--buflen >= 0);
+			}
+		}
+	}
+}
+
 /*--- Audio driver functions ---*/
-
-static void Mint_CloseAudio(_THIS);
-static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec);
-static void Mint_LockAudio(_THIS);
-static void Mint_UnlockAudio(_THIS);
-
-/* To check/init hardware audio */
-static int Mint_CheckAudio(_THIS, SDL_AudioSpec *spec);
-static void Mint_InitAudio(_THIS, SDL_AudioSpec *spec);
-static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize);
-
-/*--- Audio driver bootstrap functions ---*/
 
 static int Audio_Available(void)
 {
 	long dummy;
-	const char *envr = SDL_getenv("SDL_AUDIODRIVER");
+	const char *envr = getenv("SDL_AUDIODRIVER");
 
 	/* Check if user asked a different audio driver */
-	if ((envr) && (SDL_strcmp(envr, MINT_AUDIO_DRIVER_NAME)!=0)) {
+	if (envr && strcmp(envr, MINT_AUDIO_DRIVER_NAME) != 0)
+	{
 		DEBUG_PRINT((DEBUG_NAME "user asked a different audio driver\n"));
-		return(0);
+		return 0;
 	}
 
 	/* Cookie _MCH present ? if not, assume ST machine */
-	if (Getcookie(C__MCH, &cookie_mch) == C_NOTFOUND) {
+	if (Getcookie(C__MCH, &cookie_mch) == C_NOTFOUND)
+	{
 		cookie_mch = MCH_ST;
 	}
 
 	/* Cookie _SND present ? if not, assume ST machine */
-	if (Getcookie(C__SND, &cookie_snd) == C_NOTFOUND) {
+	if (Getcookie(C__SND, &cookie_snd) == C_NOTFOUND)
+	{
 		cookie_snd = SND_PSG;
 	}
 
 	/* Cookie STFA present ? */
-	if (Getcookie(C_STFA, &dummy) != C_FOUND) {
+	if (Getcookie(C_STFA, &dummy) != C_FOUND)
+	{
 		DEBUG_PRINT((DEBUG_NAME "no STFA audio\n"));
-		return(0);
+		return 0;
 	}
 	cookie_stfa = (cookie_stfa_t *) dummy;
 
 	DEBUG_PRINT((DEBUG_NAME "STFA audio available!\n"));
-	return(1);
+	return 1;
 }
 
 static void Audio_DeleteDevice(SDL_AudioDevice *device)
 {
-    SDL_free(device->hidden);
-    SDL_free(device);
+	SDL_free(device->hidden);
+	SDL_free(device);
 }
 
-static SDL_AudioDevice *Audio_CreateDevice(int devindex)
+static void stop_replay(void)
 {
-	SDL_AudioDevice *this;
-
-	/* Initialize all variables that we clean on shutdown */
-	this = (SDL_AudioDevice *)SDL_malloc(sizeof(SDL_AudioDevice));
-    if ( this ) {
-        SDL_memset(this, 0, (sizeof *this));
-        this->hidden = (struct SDL_PrivateAudioData *)
-                SDL_malloc((sizeof *this->hidden));
-    }
-    if ( (this == NULL) || (this->hidden == NULL) ) {
-        SDL_OutOfMemory();
-        if ( this ) {
-            SDL_free(this);
-        }
-        return(0);
-    }
-    SDL_memset(this->hidden, 0, (sizeof *this->hidden));
-
-    /* Set the function pointers */
-    this->OpenAudio   = Mint_OpenAudio;
-    this->CloseAudio  = Mint_CloseAudio;
-    this->LockAudio   = Mint_LockAudio;
-    this->UnlockAudio = Mint_UnlockAudio;
-    this->free        = Audio_DeleteDevice;
-
-    return this;
+	cookie_stfa->sound_enable = STFA_PLAY_DISABLE;
 }
 
-AudioBootStrap MINTAUDIO_STFA_bootstrap = {
-	MINT_AUDIO_DRIVER_NAME, "MiNT STFA audio driver",
-	Audio_Available, Audio_CreateDevice
-};
+static void start_replay(void)
+{
+	cookie_stfa->sound_enable = STFA_PLAY_ENABLE | STFA_PLAY_REPEAT;
+}
 
 static void Mint_LockAudio(_THIS)
 {
-	cookie_stfa->sound_enable=STFA_PLAY_DISABLE;
+	stop_replay();
 }
 
 static void Mint_UnlockAudio(_THIS)
 {
-	cookie_stfa->sound_enable=STFA_PLAY_ENABLE|STFA_PLAY_REPEAT;
+	start_replay();
 }
 
 static void Mint_CloseAudio(_THIS)
 {
-	cookie_stfa->sound_enable=STFA_PLAY_DISABLE;
+	stop_replay();
 
 	SDL_MintAudio_FreeBuffers();
-}
-
-static int Mint_CheckAudio(_THIS, SDL_AudioSpec *spec)
-{
-	int i;
-
-	DEBUG_PRINT((DEBUG_NAME "asked: %d bits, ",spec->format & 0x00ff));
-	DEBUG_PRINT(("signed=%d, ", ((spec->format & 0x8000)!=0)));
-	DEBUG_PRINT(("big endian=%d, ", ((spec->format & 0x1000)!=0)));
-	DEBUG_PRINT(("channels=%d, ", spec->channels));
-	DEBUG_PRINT(("freq=%d\n", spec->freq));
-
-    if (spec->channels > 2) {
-        spec->channels = 2;  /* no more than stereo! */
-    }
-
-	/* Check formats available */
-	MINTAUDIO_freqcount=0;
-	for (i=0;i<16;i++) {
-		SDL_MintAudio_AddFrequency(this, freqs[i], 0, i, -1);
-	}
-
-#if 1
-	for (i=0; i<MINTAUDIO_freqcount; i++) {
-		DEBUG_PRINT((DEBUG_NAME "freq %d: %lu Hz, clock %lu, prediv %d\n",
-			i, MINTAUDIO_frequencies[i].frequency, MINTAUDIO_frequencies[i].masterclock,
-			MINTAUDIO_frequencies[i].predivisor
-		));
-	}
-#endif
-
-	MINTAUDIO_numfreq=SDL_MintAudio_SearchFrequency(this, spec->freq);
-	spec->freq=MINTAUDIO_frequencies[MINTAUDIO_numfreq].frequency;
-
-	DEBUG_PRINT((DEBUG_NAME "obtained: %d bits, ",spec->format & 0x00ff));
-	DEBUG_PRINT(("signed=%d, ", ((spec->format & 0x8000)!=0)));
-	DEBUG_PRINT(("big endian=%d, ", ((spec->format & 0x1000)!=0)));
-	DEBUG_PRINT(("channels=%d, ", spec->channels));
-	DEBUG_PRINT(("freq=%d\n", spec->freq));
-
-	return 0;
-}
-
-static void Mint_InitAudio(_THIS, SDL_AudioSpec *spec)
-{
-	/* Stop replay */
-	cookie_stfa->sound_enable=STFA_PLAY_DISABLE;
-
-	/* Select replay format */
-	cookie_stfa->sound_control = MINTAUDIO_frequencies[MINTAUDIO_numfreq].predivisor;
-	if ((spec->format & 0xff)==8) {
-		cookie_stfa->sound_control |= STFA_FORMAT_8BIT;
-	} else {
-		cookie_stfa->sound_control |= STFA_FORMAT_16BIT;
-	}
-	if (spec->channels==2) {
-		cookie_stfa->sound_control |= STFA_FORMAT_STEREO;
-	} else {
-		cookie_stfa->sound_control |= STFA_FORMAT_MONO;
-	}
-	if ((spec->format & 0x8000)!=0) {
-		cookie_stfa->sound_control |= STFA_FORMAT_SIGNED;
-	} else {
-		cookie_stfa->sound_control |= STFA_FORMAT_UNSIGNED;
-	}
-	if ((spec->format & 0x1000)!=0) {
-		cookie_stfa->sound_control |= STFA_FORMAT_BIGENDIAN;
-	} else {
-		cookie_stfa->sound_control |= STFA_FORMAT_LITENDIAN;
-	}
-
-	/* Set buffer */
-	Mint_SwapBuffers(MINTAUDIO_audiobuf[0], MINTAUDIO_audiosize);
-
-	/* Set interrupt */
-	cookie_stfa->stfa_it = SDL_MintAudio_StfaInterrupt;
-
-	/* Restart replay */
-	cookie_stfa->sound_enable=STFA_PLAY_ENABLE|STFA_PLAY_REPEAT;
-
-	DEBUG_PRINT((DEBUG_NAME "hardware initialized\n"));
-}
-
-static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec)
-{
-	SDL_MintAudio_device = this;
-
-	/* Check audio capabilities */
-	if (Mint_CheckAudio(this, spec)==-1) {
-		return -1;
-	}
-
-	if (!SDL_MintAudio_InitBuffers(spec)) {
-		return -1;
-	}
-
-	/* Setup audio hardware */
-	MINTAUDIO_swapbuf = Mint_SwapBuffers;
-	Mint_InitAudio(this, spec);
-
-    return(1);	/* We don't use threaded audio */
 }
 
 static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize)
@@ -277,3 +176,131 @@ static void Mint_SwapBuffers(Uint8 *nextbuf, int nextsize)
 	cookie_stfa->sound_start = (unsigned long) nextbuf;
 	cookie_stfa->sound_end = cookie_stfa->sound_start + nextsize;
 }
+
+static void Mint_InitAudio(_THIS, SDL_AudioSpec *spec)
+{
+	/* Stop replay */
+	stop_replay();
+
+	/* Select replay format */
+	cookie_stfa->sound_control = this->hidden->frequencies[this->hidden->numfreq].predivisor_old;
+	if ((spec->format & 0xff) == 8)
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_8BIT;
+	} else
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_16BIT;
+	}
+	if (spec->channels == 2)
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_STEREO;
+	} else
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_MONO;
+	}
+	if ((spec->format & 0x8000) != 0)
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_SIGNED;
+	} else
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_UNSIGNED;
+	}
+	if ((spec->format & 0x1000) != 0)
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_BIGENDIAN;
+	} else
+	{
+		cookie_stfa->sound_control |= STFA_FORMAT_LITENDIAN;
+	}
+
+	/* Set buffer */
+	Mint_SwapBuffers(this->hidden->audiobuf[0], this->hidden->audiosize);
+
+	/* Set interrupt */
+	cookie_stfa->stfa_it = SDL_MintAudio_StfaInterrupt;
+
+	/* Restart replay */
+	start_replay();
+
+	DEBUG_PRINT((DEBUG_NAME "hardware initialized\n"));
+}
+
+static int Mint_CheckAudio(_THIS, SDL_AudioSpec *spec)
+{
+	int i;
+
+	DEBUG_PRINT((DEBUG_NAME "asked: %d bits, ", spec->format & 0x00ff));
+	DEBUG_PRINT(("signed=%d, ", ((spec->format & 0x8000) != 0)));
+	DEBUG_PRINT(("big endian=%d, ", ((spec->format & 0x1000) != 0)));
+	DEBUG_PRINT(("channels=%d, ", spec->channels));
+	DEBUG_PRINT(("freq=%d\n", spec->freq));
+
+	if (spec->channels > 2)
+	{
+		spec->channels = 2;				/* no more than stereo! */
+	}
+
+	/* Check formats available */
+	this->hidden->freq_count = 0;
+	for (i = 0; i < 16; i++)
+	{
+		SDL_MintAudio_AddFrequency(this, freqs[i], CLK25M, CLKOLD, i, -1);
+	}
+
+	SDL_MintAudio_SetFrequency(this, spec);
+
+	return 0;
+}
+
+static int Mint_OpenAudio(_THIS, SDL_AudioSpec *spec)
+{
+	SDL_MintAudio_device = this;
+
+	/* Check audio capabilities */
+	if (Mint_CheckAudio(this, spec) < 0)
+	{
+		return -1;
+	}
+
+	if (!SDL_MintAudio_InitBuffers(spec))
+	{
+		return -1;
+	}
+
+	/* Setup audio hardware */
+	this->hidden->swapbuf = Mint_SwapBuffers;
+	Mint_InitAudio(this, spec);
+
+	return 1;							/* We don't use threaded audio */
+}
+
+static SDL_AudioDevice *Audio_CreateDevice(int devindex)
+{
+	SDL_AudioDevice *this;
+
+	/* Initialize all variables that we clean on shutdown */
+	this = (SDL_AudioDevice *) SDL_calloc(1, sizeof(*this));
+	if (this)
+	{
+		this->hidden = (struct SDL_PrivateAudioData *) SDL_calloc(1, sizeof(*this->hidden));
+	}
+	if (this == NULL || this->hidden == NULL)
+	{
+		SDL_OutOfMemory();
+		SDL_free(this);
+		return 0;
+	}
+
+	/* Set the function pointers */
+	this->OpenAudio = Mint_OpenAudio;
+	this->CloseAudio = Mint_CloseAudio;
+	this->LockAudio = Mint_LockAudio;
+	this->UnlockAudio = Mint_UnlockAudio;
+	this->free = Audio_DeleteDevice;
+
+	return this;
+}
+
+AudioBootStrap MINTAUDIO_STFA_bootstrap = {
+	MINT_AUDIO_DRIVER_NAME, "MiNT STFA audio driver", Audio_Available, Audio_CreateDevice
+};

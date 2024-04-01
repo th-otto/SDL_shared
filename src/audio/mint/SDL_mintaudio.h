@@ -41,8 +41,9 @@
 
 typedef struct {
 	Uint32	frequency;
-	Uint32	masterclock;
-	Uint32	predivisor;
+	Uint16	clocksrc;
+	Uint16	predivisor;
+	Sint16	predivisor_old;
 	int	gpio_bits;	/* in case of external clock */
 } mint_frequency_t;
 
@@ -58,16 +59,6 @@ struct SDL_PrivateAudioData {
 	void (*swapbuf)(Uint8 *nextbuf, int nextsize);	/* Routine to swap DMA buffers */
 };
 
-/* Old variable names */
-
-#define MINTAUDIO_frequencies	(this->hidden->frequencies)
-#define MINTAUDIO_freqcount	(this->hidden->freq_count)
-#define MINTAUDIO_numfreq	(this->hidden->numfreq)
-#define MINTAUDIO_swapbuf	(this->hidden->swapbuf)
-#define MINTAUDIO_audiobuf	(this->hidden->audiobuf)
-#define MINTAUDIO_fastrambuf	(this->hidden->fastrambuf)
-#define MINTAUDIO_audiosize	(this->hidden->audiosize)
-
 /* _MCH cookie (values>>16) */
 enum {
 	MCH_ST=0,
@@ -80,7 +71,7 @@ enum {
 
 /* Master clocks for replay frequencies */
 #define MASTERCLOCK_STE		8010666		/* Not sure of this one */
-#define MASTERCLOCK_TT		16107953	/* Not sure of this one */
+#define MASTERCLOCK_TT		16021120	/* Not sure of this one */
 #define MASTERCLOCK_FALCON1	25175000
 #define MASTERCLOCK_FALCON2	32000000	/* Only usable for DSP56K */
 #define MASTERCLOCK_FALCONEXT	-1		/* Clock on DSP56K port, unknown */
@@ -96,39 +87,24 @@ enum {
 /* Variables */
 extern SDL_AudioDevice *SDL_MintAudio_device;
 
-/* MiNT thread variables */
-extern SDL_bool	SDL_MintAudio_mint_present;
-extern SDL_bool SDL_MintAudio_quit_thread;
-extern SDL_bool SDL_MintAudio_thread_finished;
-extern long SDL_MintAudio_thread_pid;
-
 /* Functions */
 void SDL_AtariMint_UpdateAudio(void);
 
 int SDL_MintAudio_InitBuffers(SDL_AudioSpec *spec);
 void SDL_MintAudio_FreeBuffers(void);
-void SDL_MintAudio_AddFrequency(_THIS, Uint32 frequency, Uint32 clock,
-	Uint32 prediv, int gpio_bits);
-int SDL_MintAudio_SearchFrequency(_THIS, int desired_freq);
+void SDL_MintAudio_AddFrequency(_THIS, Uint32 frequency, Uint16 clock, Uint16 prediv, Sint16 prediv_old, int gpio_bits);
+void SDL_MintAudio_SetFrequency(_THIS, SDL_AudioSpec *spec);
 
-/* MiNT thread functions */
-int SDL_MintAudio_Thread(long param);
-void SDL_MintAudio_WaitThread(void);
-
-/*--- SDL_mintaudio_it.S stuff ---*/
+/*--- SDL_mintaudio_xbios.c stuff ---*/
 
 /* Variables */
-extern volatile unsigned long SDL_MintAudio_clocktics;
 extern volatile unsigned long SDL_MintAudio_num_its;
 
-extern volatile void *SDL_MintAudio_itbuffer;
-extern volatile unsigned long SDL_MintAudio_itbuflen;
-extern volatile unsigned long SDL_MintAudio_itsilence;
+extern void *SDL_MintAudio_itbuffer;
+extern unsigned long SDL_MintAudio_itbuflen;
+extern unsigned long SDL_MintAudio_itsilence;
 
 /* Functions */
-void SDL_MintAudio_XbiosInterruptMeasureClock(void);
 void SDL_MintAudio_XbiosInterrupt(void);
-void SDL_MintAudio_Dma8Interrupt(void);
-void SDL_MintAudio_StfaInterrupt(void);
 
 #endif /* _SDL_mintaudio_h */

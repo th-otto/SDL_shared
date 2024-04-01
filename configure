@@ -19434,7 +19434,6 @@ fi
             printf "%s\n" "#define SDL_AUDIO_DRIVER_MINT 1" >>confdefs.h
 
             SOURCES="$SOURCES $srcdir/src/audio/mint/*.c"
-            SOURCES="$SOURCES $srcdir/src/audio/mint/*.S"
             have_audio=yes
         fi
     fi
